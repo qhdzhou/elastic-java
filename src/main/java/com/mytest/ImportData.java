@@ -1,5 +1,6 @@
 package com.mytest;
 
+import org.apache.commons.lang.StringUtils;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -29,7 +30,7 @@ public class ImportData {
             }
         }
 //        indexWithBulkProcessor("/home/xiaolei.ji/finalout.txt", client,threadNum);
-        indexWithBulkProcessor("fin", client,threadNum);
+        indexWithBulkProcessor("finalout.txt", client,threadNum);
 
     }
 
@@ -37,47 +38,32 @@ public class ImportData {
         BufferedReader reader = null;
         long start = System.currentTimeMillis();
         try {
-//            读取包内文件
-            InputStream is = ImportData.class.getClassLoader().getResourceAsStream(fileName);
-            if(is == null){
-                throw  new Exception("file do not exist.");
-            }
-            reader = new BufferedReader(new InputStreamReader(is,"UTF-8"));
-//            File file = new File(fileName);
-//            if(!file.exists()){
-//                throw  new Exception("file do not exist.");
-//            }
-//            reader = new BufferedReader(new FileReader(file));
-            String tempString = null;
-            int line = 1;
+            reader = getBufferedReaderWithResource(fileName);
+//            reader =  getBufferedReaderWithFilePath(fileName);
+            String tempString ;
             // 一次读入一行，直到读入null为文件结束
             BulkProcessor bulkProcessor = buildBulkProcessor(client, threadNum);
-
+            int line = 1;
             while ((tempString = reader.readLine()) != null) {
                 String[] content = tempString.replaceAll("\"","").split(",");
-                String poiId = "",poiName = "",poiTypeId = "",poiTypeName = "";
-                if(content.length >= 2){
-                    poiId = content[0];
-                    poiName = content[1];
+                if(content.length == 4){
+                    String poiId = content[0];
+                    String poiName = content[1];
+                    String poiTypeId = content[2];
+                    String poiTypeName= content[3];
+                    if(StringUtils.isNotEmpty(poiId) && StringUtils.isNotEmpty(poiName)){
+                        IndexRequestBuilder response = client.prepareIndex("testindex", "type")
+                                .setSource(XContentFactory.jsonBuilder()
+                                                .startObject()
+                                                .field("poiId", poiId)
+                                                .field("poiName", poiName)
+                                                .field("poiTypeId", poiTypeId)
+                                                .field("poiTypeName", poiTypeName)
+                                                .endObject()
+                                );
+                        bulkProcessor.add(response.request());
+                    }
                 }
-                if(content.length >=3){
-                    poiTypeId = content[2];
-                }
-                if(content.length >=4){
-                    poiTypeName= content[3];
-                }
-                IndexRequestBuilder response = client.prepareIndex("test", "test")
-                        .setSource(XContentFactory.jsonBuilder()
-                                        .startObject()
-                                        .field("poiId", poiId)
-                                        .field("poiName", poiName)
-                                        .field("poiTypeId", poiTypeId)
-                                        .field("poiTypeName", poiTypeName)
-                                        .endObject()
-                        );
-                bulkProcessor.add(response.request());
-                // 显示行号
-//                System.out.println("line " + line + ": " + tempString);
                 line++;
                 if(line % 10000 == 0){
                     long now = System.currentTimeMillis();
@@ -85,7 +71,7 @@ public class ImportData {
                 }
             }
             long now = System.currentTimeMillis();
-            System.out.println("completed. It takes " + (now -start)/1000 +"s");
+            System.out.println("================Completed. It takes " + (now -start)/1000 +"s");
             bulkProcessor.close();
             reader.close();
         } catch (IOException e) {
@@ -98,6 +84,23 @@ public class ImportData {
                 }
             }
         }
+    }
+
+    private static BufferedReader getBufferedReaderWithResource(String fileName) throws Exception {
+        //            读取包内文件
+        InputStream is = ImportData.class.getClassLoader().getResourceAsStream(fileName);
+        if(is == null){
+            throw  new Exception("file do not exist.");
+        }
+        return new BufferedReader(new InputStreamReader(is,"UTF-8"));
+    }
+
+    private static BufferedReader getBufferedReaderWithFilePath(String fileName) throws Exception {
+        File file = new File(fileName);
+        if(!file.exists()){
+            throw  new Exception("file do not exist.");
+        }
+        return new BufferedReader(new FileReader(file));
     }
 
     private static BulkProcessor buildBulkProcessor(Client client, int threadNum) {
@@ -121,6 +124,7 @@ public class ImportData {
 
     public static void indexWithSingle(String fileName, Client client) {
         BufferedReader reader = null;
+        long start = System.currentTimeMillis();
         try {
             InputStream is = ImportData.class.getClassLoader().getResourceAsStream(fileName);
             reader = new BufferedReader(new InputStreamReader(is));
@@ -129,31 +133,30 @@ public class ImportData {
             // 一次读入一行，直到读入null为文件结束
             while ((tempString = reader.readLine()) != null) {
                 String[] content = tempString.replaceAll("\"","").split(",");
-                String poiId = "",poiName = "",poiTypeId = "",poiTypeName = "";
-                if(content.length >= 2){
-                    poiId = content[0];
-                    poiName = content[1];
+                if(content.length == 4){
+                    String poiId = content[0];
+                    String poiName = content[1];
+                    String poiTypeId = content[2];
+                    String poiTypeName= content[3];
+                    if(StringUtils.isNotEmpty(poiId) && StringUtils.isNotEmpty(poiName)){
+                        client.prepareIndex("test", "test")
+                                .setSource(XContentFactory.jsonBuilder()
+                                                .startObject()
+                                                .field("poiId", poiId)
+                                                .field("poiName", poiName)
+                                                .field("poiTypeId", poiTypeId)
+                                                .field("poiTypeName", poiTypeName)
+                                                .endObject()
+                                )
+                                .execute()
+                                .actionGet();
+                    }
                 }
-                if(content.length >=3){
-                    poiTypeId = content[2];
-                }
-                if(content.length >=4){
-                    poiTypeName= content[3];
-                }
-                IndexResponse response = client.prepareIndex("aospoi", "poi")
-                        .setSource(XContentFactory.jsonBuilder()
-                                        .startObject()
-                                        .field("poiId", poiId)
-                                        .field("poiName", poiName)
-                                        .field("poiTypeId", poiTypeId)
-                                        .field("poiTypeName", poiTypeName)
-                                        .endObject()
-                        )
-                        .execute()
-                        .actionGet();
-                // 显示行号
-                System.out.println("line " + line + ": " + tempString);
                 line++;
+                if(line % 10000 == 0){
+                    long now = System.currentTimeMillis();
+                    System.out.println("line " + line + "  completed. It takes " + (now -start)/1000 +"s");
+                }
             }
             reader.close();
         } catch (IOException e) {
